@@ -42,6 +42,19 @@ export const useUserStore = defineStore('user', () => {
     return permissions.value.includes(code) || permissions.value.includes('*')
   }
 
+  function setToken(newToken) {
+    token.value = newToken
+    localStorage.setItem('token', newToken)
+  }
+
+  function setRefreshToken(refreshToken) {
+    localStorage.setItem('refreshToken', refreshToken)
+  }
+
+  function setUserInfo(info) {
+    userInfo.value = info
+  }
+
   return {
     token,
     userInfo,
@@ -52,5 +65,8 @@ export const useUserStore = defineStore('user', () => {
     logoutAction,
     fetchProfile,
     hasPermission,
+    setToken,
+    setRefreshToken,
+    setUserInfo,
   }
 })

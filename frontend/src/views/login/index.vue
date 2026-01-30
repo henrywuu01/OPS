@@ -44,6 +44,9 @@
             登录
           </a-button>
         </a-form-item>
+        <div class="register-link">
+          还没有账号？<router-link to="/register">立即注册</router-link>
+        </div>
       </a-form>
     </div>
   </div>
@@ -116,6 +119,15 @@ async function handleLogin() {
   p {
     color: #999;
     font-size: 14px;
+  }
+}
+
+.register-link {
+  text-align: center;
+  color: #666;
+
+  a {
+    color: #1890ff;
   }
 }
 </style>

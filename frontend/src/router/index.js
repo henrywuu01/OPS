@@ -12,6 +12,12 @@ const routes = [
     meta: { title: '登录', requireAuth: false },
   },
   {
+    path: '/register',
+    name: 'Register',
+    component: () => import('@/views/login/register.vue'),
+    meta: { title: '注册', requireAuth: false },
+  },
+  {
     path: '/',
     name: 'Layout',
     component: () => import('@/views/layout/index.vue'),
