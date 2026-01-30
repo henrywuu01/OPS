@@ -457,3 +457,428 @@ class PermissionTreeView(APIView):
         ).order_by('sort_order')
         serializer = PermissionTreeSerializer(root_permissions, many=True)
         return Response(serializer.data)
+
+
+# ==================== SSO Views ====================
+
+from .sso import get_sso_provider, WeChatWorkSSO, DingTalkSSO, FeishuSSO
+
+
+class SSOConfigView(APIView):
+    """Return available SSO providers configuration."""
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        providers = []
+
+        # Check WeChat Work
+        wechat = WeChatWorkSSO()
+        if wechat.is_configured:
+            providers.append({
+                'name': 'wechat_work',
+                'label': '企业微信',
+                'icon': 'wechat',
+                'enabled': True,
+            })
+
+        # Check DingTalk
+        dingtalk = DingTalkSSO()
+        if dingtalk.is_configured:
+            providers.append({
+                'name': 'dingtalk',
+                'label': '钉钉',
+                'icon': 'dingtalk',
+                'enabled': True,
+            })
+
+        # Check Feishu
+        feishu = FeishuSSO()
+        if feishu.is_configured:
+            providers.append({
+                'name': 'feishu',
+                'label': '飞书',
+                'icon': 'feishu',
+                'enabled': True,
+            })
+
+        return Response({
+            'providers': providers,
+            'sso_enabled': len(providers) > 0,
+        })
+
+
+class SSOLoginView(APIView):
+    """Generate SSO login QR code URL."""
+    permission_classes = [AllowAny]
+
+    def get(self, request, provider):
+        sso = get_sso_provider(provider)
+        if not sso:
+            return Response(
+                {'error': f'不支持的SSO提供商: {provider}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if not sso.is_configured:
+            return Response(
+                {'error': f'{provider} SSO未配置'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Generate state for CSRF protection
+        import hashlib
+        import time
+        state = hashlib.md5(f'{time.time()}{provider}'.encode()).hexdigest()
+
+        qr_url = sso.get_qrcode_url(state)
+
+        return Response({
+            'provider': provider,
+            'qr_url': qr_url,
+            'state': state,
+        })
+
+
+class SSOCallbackView(APIView):
+    """Handle SSO OAuth callback."""
+    permission_classes = [AllowAny]
+
+    def get(self, request, provider):
+        """Handle GET callback (redirect from SSO provider)."""
+        code = request.query_params.get('code')
+        state = request.query_params.get('state')
+
+        return self._handle_callback(provider, code, state)
+
+    def post(self, request, provider):
+        """Handle POST callback (frontend sends code)."""
+        code = request.data.get('code')
+        state = request.data.get('state')
+
+        return self._handle_callback(provider, code, state)
+
+    def _handle_callback(self, provider, code, state):
+        if not code:
+            return Response(
+                {'error': '缺少授权码'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        sso = get_sso_provider(provider)
+        if not sso:
+            return Response(
+                {'error': f'不支持的SSO提供商: {provider}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Verify state (CSRF protection)
+        if state and not sso.verify_state(state):
+            return Response(
+                {'error': '无效的state参数，请重新登录'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Get user info from SSO provider
+        success, user_info = sso.get_user_info(code)
+
+        if not success:
+            return Response(
+                {'error': user_info.get('error', 'SSO认证失败')},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Find or create user based on SSO info
+        user = self._get_or_create_user(provider, user_info)
+
+        if not user:
+            return Response(
+                {'error': '无法创建或找到用户'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if not user.is_active:
+            return Response(
+                {'error': '账号已被禁用'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # Generate JWT tokens
+        refresh = RefreshToken.for_user(user)
+
+        # Update login count
+        user.login_count += 1
+        user.save(update_fields=['login_count'])
+
+        return Response({
+            'refresh': str(refresh),
+            'access': str(refresh.access_token),
+            'user': {
+                'id': user.id,
+                'username': user.username,
+                'real_name': user.real_name,
+                'email': user.email,
+                'avatar': user.avatar,
+                'is_staff': user.is_staff,
+            },
+            'is_new_user': getattr(user, '_is_new_user', False),
+        })
+
+    def _get_or_create_user(self, provider, user_info):
+        """Find existing user or create new one based on SSO info."""
+        user_type = user_info.get('type')
+
+        if provider == 'wechat_work':
+            return self._handle_wechat_work_user(user_info)
+        elif provider == 'dingtalk':
+            return self._handle_dingtalk_user(user_info)
+        elif provider == 'feishu':
+            return self._handle_feishu_user(user_info)
+
+        return None
+
+    def _handle_wechat_work_user(self, user_info):
+        """Handle WeChat Work user login/registration."""
+        user_type = user_info.get('type')
+
+        if user_type == 'external':
+            # External users not allowed
+            return None
+
+        user_id = user_info.get('user_id')
+
+        # Try to find existing user by wechat_work_id
+        try:
+            user = User.objects.get(wechat_work_id=user_id)
+            return user
+        except User.DoesNotExist:
+            pass
+
+        # Try to find by email or mobile
+        email = user_info.get('email')
+        mobile = user_info.get('mobile')
+
+        if email:
+            try:
+                user = User.objects.get(email=email)
+                user.wechat_work_id = user_id
+                user.save(update_fields=['wechat_work_id'])
+                return user
+            except User.DoesNotExist:
+                pass
+
+        if mobile:
+            try:
+                user = User.objects.get(phone=mobile)
+                user.wechat_work_id = user_id
+                user.save(update_fields=['wechat_work_id'])
+                return user
+            except User.DoesNotExist:
+                pass
+
+        # Create new user
+        username = f'wx_{user_id}'
+        user = User.objects.create(
+            username=username,
+            real_name=user_info.get('name', ''),
+            email=email or '',
+            phone=mobile or '',
+            avatar=user_info.get('avatar', ''),
+            wechat_work_id=user_id,
+            is_active=True,
+        )
+        user._is_new_user = True
+        return user
+
+    def _handle_dingtalk_user(self, user_info):
+        """Handle DingTalk user login/registration."""
+        union_id = user_info.get('union_id')
+        open_id = user_info.get('open_id')
+
+        # Try to find existing user by dingtalk_id
+        try:
+            user = User.objects.get(dingtalk_id=union_id)
+            return user
+        except User.DoesNotExist:
+            pass
+
+        # Try to find by email or mobile
+        email = user_info.get('email')
+        mobile = user_info.get('mobile')
+
+        if email:
+            try:
+                user = User.objects.get(email=email)
+                user.dingtalk_id = union_id
+                user.save(update_fields=['dingtalk_id'])
+                return user
+            except User.DoesNotExist:
+                pass
+
+        if mobile:
+            try:
+                user = User.objects.get(phone=mobile)
+                user.dingtalk_id = union_id
+                user.save(update_fields=['dingtalk_id'])
+                return user
+            except User.DoesNotExist:
+                pass
+
+        # Create new user
+        username = f'dd_{union_id[:16]}'
+        user = User.objects.create(
+            username=username,
+            real_name=user_info.get('name', ''),
+            email=email or '',
+            phone=mobile or '',
+            avatar=user_info.get('avatar', ''),
+            dingtalk_id=union_id,
+            is_active=True,
+        )
+        user._is_new_user = True
+        return user
+
+    def _handle_feishu_user(self, user_info):
+        """Handle Feishu user login/registration."""
+        union_id = user_info.get('union_id')
+        open_id = user_info.get('open_id')
+
+        # Try to find existing user by feishu_id
+        try:
+            user = User.objects.get(feishu_id=union_id)
+            return user
+        except User.DoesNotExist:
+            pass
+
+        # Try to find by email or mobile
+        email = user_info.get('email')
+        mobile = user_info.get('mobile')
+
+        if email:
+            try:
+                user = User.objects.get(email=email)
+                user.feishu_id = union_id
+                user.save(update_fields=['feishu_id'])
+                return user
+            except User.DoesNotExist:
+                pass
+
+        if mobile:
+            try:
+                user = User.objects.get(phone=mobile)
+                user.feishu_id = union_id
+                user.save(update_fields=['feishu_id'])
+                return user
+            except User.DoesNotExist:
+                pass
+
+        # Create new user
+        username = f'fs_{union_id[:16]}'
+        user = User.objects.create(
+            username=username,
+            real_name=user_info.get('name', ''),
+            email=email or '',
+            phone=mobile or '',
+            avatar=user_info.get('avatar', ''),
+            feishu_id=union_id,
+            is_active=True,
+        )
+        user._is_new_user = True
+        return user
+
+
+class SSOBindView(APIView):
+    """Bind SSO account to existing user."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, provider):
+        code = request.data.get('code')
+        state = request.data.get('state')
+
+        if not code:
+            return Response(
+                {'error': '缺少授权码'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        sso = get_sso_provider(provider)
+        if not sso:
+            return Response(
+                {'error': f'不支持的SSO提供商: {provider}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Verify state
+        if state and not sso.verify_state(state):
+            return Response(
+                {'error': '无效的state参数'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Get user info from SSO provider
+        success, user_info = sso.get_user_info(code)
+
+        if not success:
+            return Response(
+                {'error': user_info.get('error', 'SSO认证失败')},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        user = request.user
+
+        # Bind SSO account to user
+        if provider == 'wechat_work':
+            user_id = user_info.get('user_id')
+            if User.objects.filter(wechat_work_id=user_id).exclude(pk=user.pk).exists():
+                return Response(
+                    {'error': '该企业微信账号已绑定其他用户'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            user.wechat_work_id = user_id
+            user.save(update_fields=['wechat_work_id'])
+
+        elif provider == 'dingtalk':
+            union_id = user_info.get('union_id')
+            if User.objects.filter(dingtalk_id=union_id).exclude(pk=user.pk).exists():
+                return Response(
+                    {'error': '该钉钉账号已绑定其他用户'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            user.dingtalk_id = union_id
+            user.save(update_fields=['dingtalk_id'])
+
+        elif provider == 'feishu':
+            union_id = user_info.get('union_id')
+            if User.objects.filter(feishu_id=union_id).exclude(pk=user.pk).exists():
+                return Response(
+                    {'error': '该飞书账号已绑定其他用户'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            user.feishu_id = union_id
+            user.save(update_fields=['feishu_id'])
+
+        return Response({'message': f'{provider}账号绑定成功'})
+
+
+class SSOUnbindView(APIView):
+    """Unbind SSO account from user."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, provider):
+        user = request.user
+
+        if provider == 'wechat_work':
+            user.wechat_work_id = ''
+            user.save(update_fields=['wechat_work_id'])
+        elif provider == 'dingtalk':
+            user.dingtalk_id = ''
+            user.save(update_fields=['dingtalk_id'])
+        elif provider == 'feishu':
+            user.feishu_id = ''
+            user.save(update_fields=['feishu_id'])
+        else:
+            return Response(
+                {'error': f'不支持的SSO提供商: {provider}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        return Response({'message': f'{provider}账号解绑成功'})

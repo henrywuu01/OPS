@@ -82,6 +82,11 @@ class User(AbstractBaseUser, PermissionsMixin):
     ]
     data_scope = models.CharField('数据权限', max_length=20, choices=DATA_SCOPE_CHOICES, default='SELF')
 
+    # SSO IDs
+    wechat_work_id = models.CharField('企业微信ID', max_length=100, blank=True, null=True, db_index=True)
+    dingtalk_id = models.CharField('钉钉ID', max_length=100, blank=True, null=True, db_index=True)
+    feishu_id = models.CharField('飞书ID', max_length=100, blank=True, null=True, db_index=True)
+
     # Login info
     last_login_ip = models.GenericIPAddressField('最后登录IP', blank=True, null=True)
     login_count = models.IntegerField('登录次数', default=0)

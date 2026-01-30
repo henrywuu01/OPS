@@ -143,7 +143,7 @@ MEDIA_ROOT = BASE_DIR / 'media'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Custom User Model
-AUTH_USER_MODEL = 'auth.User'
+AUTH_USER_MODEL = 'user_auth.User'
 
 # REST Framework
 REST_FRAMEWORK = {
@@ -279,3 +279,21 @@ CSRF_COOKIE_HTTPONLY = True
 
 # Database connection pool settings (for better performance)
 CONN_MAX_AGE = 600  # Keep database connections alive for 10 minutes
+
+# ==================== SSO Configuration ====================
+
+# WeChat Work (企业微信) SSO
+WECHAT_WORK_CORP_ID = config.get('sso', 'wechat_work_corp_id', fallback='')
+WECHAT_WORK_AGENT_ID = config.get('sso', 'wechat_work_agent_id', fallback='')
+WECHAT_WORK_SECRET = config.get('sso', 'wechat_work_secret', fallback='')
+WECHAT_WORK_REDIRECT_URI = config.get('sso', 'wechat_work_redirect_uri', fallback='')
+
+# DingTalk (钉钉) SSO
+DINGTALK_APP_KEY = config.get('sso', 'dingtalk_app_key', fallback='')
+DINGTALK_APP_SECRET = config.get('sso', 'dingtalk_app_secret', fallback='')
+DINGTALK_REDIRECT_URI = config.get('sso', 'dingtalk_redirect_uri', fallback='')
+
+# Feishu (飞书) SSO
+FEISHU_APP_ID = config.get('sso', 'feishu_app_id', fallback='')
+FEISHU_APP_SECRET = config.get('sso', 'feishu_app_secret', fallback='')
+FEISHU_REDIRECT_URI = config.get('sso', 'feishu_redirect_uri', fallback='')

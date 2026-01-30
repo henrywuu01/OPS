@@ -206,13 +206,14 @@ class ProfileSerializer(serializers.ModelSerializer):
     department_name = serializers.CharField(source='department.name', read_only=True)
     roles = serializers.SerializerMethodField()
     permissions = serializers.SerializerMethodField()
+    sso_bindings = serializers.SerializerMethodField()
 
     class Meta:
         model = User
         fields = [
             'id', 'username', 'email', 'phone', 'real_name', 'avatar',
             'department', 'department_name', 'is_staff', 'data_scope',
-            'mfa_enabled', 'roles', 'permissions'
+            'mfa_enabled', 'roles', 'permissions', 'sso_bindings'
         ]
         read_only_fields = ['username', 'is_staff']
 
@@ -228,6 +229,14 @@ class ProfileSerializer(serializers.ModelSerializer):
             for rp in user_role.role.role_permissions.select_related('permission'):
                 permissions.add(rp.permission.code)
         return list(permissions)
+
+    def get_sso_bindings(self, obj):
+        """Return SSO binding status for each provider."""
+        return {
+            'wechat_work': bool(obj.wechat_work_id),
+            'dingtalk': bool(obj.dingtalk_id),
+            'feishu': bool(obj.feishu_id),
+        }
 
 
 class DepartmentSerializer(serializers.ModelSerializer):

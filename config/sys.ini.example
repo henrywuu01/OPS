@@ -23,3 +23,23 @@ port=3306
 user=ops_user
 password=your_password_here
 timeout=6000
+
+[sso]
+# WeChat Work SSO Configuration
+# Documentation: https://developer.work.weixin.qq.com/document/path/91025
+wechat_work_corp_id=your_corp_id
+wechat_work_agent_id=your_agent_id
+wechat_work_secret=your_secret
+wechat_work_redirect_uri=http://localhost:5173/sso/callback/wechat_work
+
+# DingTalk SSO Configuration
+# Documentation: https://open.dingtalk.com/document/orgapp/scan-qr-code-to-log-on-to-third-party-websites
+dingtalk_app_key=your_app_key
+dingtalk_app_secret=your_app_secret
+dingtalk_redirect_uri=http://localhost:5173/sso/callback/dingtalk
+
+# Feishu SSO Configuration
+# Documentation: https://open.feishu.cn/document/common-capabilities/sso/web-application-sso/qr-sdk-documentation
+feishu_app_id=your_app_id
+feishu_app_secret=your_app_secret
+feishu_redirect_uri=http://localhost:5173/sso/callback/feishu

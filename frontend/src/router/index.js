@@ -18,6 +18,12 @@ const routes = [
     meta: { title: '注册', requireAuth: false },
   },
   {
+    path: '/sso/callback/:provider',
+    name: 'SSOCallback',
+    component: () => import('@/views/login/sso-callback.vue'),
+    meta: { title: 'SSO登录', requireAuth: false },
+  },
+  {
     path: '/',
     name: 'Layout',
     component: () => import('@/views/layout/index.vue'),
