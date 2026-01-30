@@ -32,6 +32,24 @@ class User(AbstractBaseUser, PermissionsMixin):
         verbose_name = '用户'
         verbose_name_plural = verbose_name
 
+    # Override PermissionsMixin fields to avoid clashes
+    groups = models.ManyToManyField(
+        'auth.Group',
+        verbose_name='groups',
+        blank=True,
+        help_text='The groups this user belongs to.',
+        related_name='custom_user_set',
+        related_query_name='custom_user',
+    )
+    user_permissions = models.ManyToManyField(
+        'auth.Permission',
+        verbose_name='user permissions',
+        blank=True,
+        help_text='Specific permissions for this user.',
+        related_name='custom_user_set',
+        related_query_name='custom_user',
+    )
+
     username = models.CharField('用户名', max_length=50, unique=True)
     email = models.EmailField('邮箱', max_length=100, blank=True, null=True)
     phone = models.CharField('手机号', max_length=20, blank=True, null=True)
