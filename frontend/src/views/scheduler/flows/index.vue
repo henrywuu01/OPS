@@ -319,12 +319,13 @@ const statusColors = { pending: 'default', running: 'processing', success: 'succ
 
 // Columns
 const columns = [
-  { title: '工作流名称', dataIndex: 'name', key: 'name' },
-  { title: 'Cron表达式', dataIndex: 'cron_expr', key: 'cron_expr', width: 150 },
-  { title: '节点数', key: 'nodes', width: 100 },
+  { title: '工作流名称', dataIndex: 'name', key: 'name', width: 180, ellipsis: true },
+  { title: '描述', dataIndex: 'description', key: 'description', ellipsis: true },
+  { title: 'Cron表达式', dataIndex: 'cron_expr', key: 'cron_expr', width: 140 },
+  { title: '节点数', key: 'nodes', width: 80 },
   { title: '状态', dataIndex: 'status', key: 'status', width: 80 },
-  { title: '更新时间', dataIndex: 'updated_at', key: 'updated_at', width: 180 },
-  { title: '操作', key: 'action', width: 180, fixed: 'right' },
+  { title: '更新时间', dataIndex: 'updated_at', key: 'updated_at', width: 170 },
+  { title: '操作', key: 'action', width: 160, fixed: 'right' },
 ]
 
 const instanceColumns = [
