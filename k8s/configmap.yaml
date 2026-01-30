@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ops-config
+  namespace: ops
+data:
+  DJANGO_SETTINGS_MODULE: "ops.settings"
+  DJANGO_DEBUG: "false"
+  TZ: "Asia/Shanghai"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sys-ini
+  namespace: ops
+data:
+  sys.ini: |
+    [sys_info]
+    sys_name = ops
+    sys_debug = false
+
+    [db]
+    host = ops-mysql
+    port = 3306
+    user = ops_user
+    # password is in secret
+
+    [redis]
+    redis_url = redis://ops-redis:6379/0
+
+    [xlog]
+    log_level = INFO
+    file_log_path = /app/logs

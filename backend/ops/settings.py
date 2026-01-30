@@ -62,6 +62,9 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'simple_history.middleware.HistoryRequestMiddleware',
     'apps.audit.middleware.AuditLogMiddleware',
+    # Security & Performance middleware
+    'apps.common.security.SecurityHeadersMiddleware',
+    'apps.common.security.RateLimitMiddleware',
 ]
 
 ROOT_URLCONF = 'ops.urls'
@@ -254,3 +257,25 @@ LOGGING = {
 
 # Ensure log directory exists
 os.makedirs(LOG_PATH, exist_ok=True)
+
+# Rate Limiting Configuration
+# Format: (max_requests, window_seconds)
+RATE_LIMIT = {
+    'DEFAULT': (200, 60),      # Authenticated users: 200 requests per minute
+    'ANONYMOUS': (60, 60),     # Anonymous users: 60 requests per minute
+    'STRICT': (10, 60),        # Sensitive endpoints: 10 requests per minute
+}
+
+# Security Settings
+SECURE_BROWSER_XSS_FILTER = True
+SECURE_CONTENT_TYPE_NOSNIFF = True
+X_FRAME_OPTIONS = 'DENY'
+
+# Session Security
+SESSION_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SECURE = not DEBUG
+SESSION_COOKIE_HTTPONLY = True
+CSRF_COOKIE_HTTPONLY = True
+
+# Database connection pool settings (for better performance)
+CONN_MAX_AGE = 600  # Keep database connections alive for 10 minutes

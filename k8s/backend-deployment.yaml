@@ -1,0 +1,112 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ops-backend
+  namespace: ops
+  labels:
+    app: ops-backend
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: ops-backend
+  template:
+    metadata:
+      labels:
+        app: ops-backend
+    spec:
+      containers:
+      - name: backend
+        image: ops-backend:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8000
+        envFrom:
+        - configMapRef:
+            name: ops-config
+        env:
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: ops-secrets
+              key: MYSQL_PASSWORD
+        - name: DJANGO_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: ops-secrets
+              key: DJANGO_SECRET_KEY
+        volumeMounts:
+        - name: config-volume
+          mountPath: /app/../config
+          readOnly: true
+        - name: logs
+          mountPath: /app/logs
+        - name: media
+          mountPath: /app/media
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /api/health/
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /api/health/
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      volumes:
+      - name: config-volume
+        configMap:
+          name: sys-ini
+      - name: logs
+        emptyDir: {}
+      - name: media
+        persistentVolumeClaim:
+          claimName: ops-media-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ops-backend
+  namespace: ops
+spec:
+  selector:
+    app: ops-backend
+  ports:
+  - port: 8000
+    targetPort: 8000
+  type: ClusterIP
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: ops-backend-hpa
+  namespace: ops
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: ops-backend
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80

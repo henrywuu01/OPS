@@ -1,0 +1,97 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ops-celery-worker
+  namespace: ops
+  labels:
+    app: ops-celery-worker
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ops-celery-worker
+  template:
+    metadata:
+      labels:
+        app: ops-celery-worker
+    spec:
+      containers:
+      - name: celery-worker
+        image: ops-backend:latest
+        imagePullPolicy: Always
+        command: ["celery", "-A", "ops", "worker", "-l", "info", "-c", "4"]
+        envFrom:
+        - configMapRef:
+            name: ops-config
+        env:
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: ops-secrets
+              key: MYSQL_PASSWORD
+        volumeMounts:
+        - name: config-volume
+          mountPath: /app/../config
+          readOnly: true
+        - name: logs
+          mountPath: /app/logs
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+      volumes:
+      - name: config-volume
+        configMap:
+          name: sys-ini
+      - name: logs
+        emptyDir: {}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ops-celery-beat
+  namespace: ops
+  labels:
+    app: ops-celery-beat
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ops-celery-beat
+  template:
+    metadata:
+      labels:
+        app: ops-celery-beat
+    spec:
+      containers:
+      - name: celery-beat
+        image: ops-backend:latest
+        imagePullPolicy: Always
+        command: ["celery", "-A", "ops", "beat", "-l", "info", "--scheduler", "django_celery_beat.schedulers:DatabaseScheduler"]
+        envFrom:
+        - configMapRef:
+            name: ops-config
+        env:
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: ops-secrets
+              key: MYSQL_PASSWORD
+        volumeMounts:
+        - name: config-volume
+          mountPath: /app/../config
+          readOnly: true
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "250m"
+      volumes:
+      - name: config-volume
+        configMap:
+          name: sys-ini
