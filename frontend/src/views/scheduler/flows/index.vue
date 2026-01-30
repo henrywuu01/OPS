@@ -40,6 +40,7 @@
         :loading="loading"
         :pagination="pagination"
         row-key="id"
+        :expand-column-width="48"
         @change="handleTableChange"
       >
         <template #bodyCell="{ column, record }">
@@ -82,6 +83,52 @@
               </a-popconfirm>
             </a-space>
           </template>
+        </template>
+
+        <!-- Expandable row to show internal tasks -->
+        <template #expandedRowRender="{ record }">
+          <div class="expanded-tasks">
+            <a-table
+              :columns="taskColumns"
+              :data-source="getFlowTasks(record)"
+              :pagination="false"
+              size="small"
+              row-key="nodeId"
+            >
+              <template #bodyCell="{ column, record: task }">
+                <template v-if="column.key === 'order'">
+                  <a-tag color="blue">{{ task.order }}</a-tag>
+                </template>
+                <template v-else-if="column.key === 'jobType'">
+                  <a-tag :color="jobTypeColors[task.jobType] || 'default'">{{ jobTypeLabels[task.jobType] || task.jobType }}</a-tag>
+                </template>
+                <template v-else-if="column.key === 'dependencies'">
+                  <span v-if="task.dependencies.length">
+                    <a-tag v-for="dep in task.dependencies" :key="dep" size="small">{{ dep }}</a-tag>
+                  </span>
+                  <span v-else class="text-gray">无</span>
+                </template>
+                <template v-else-if="column.key === 'action'">
+                  <a-space>
+                    <a-tooltip title="单独执行此任务">
+                      <a-button
+                        type="primary"
+                        size="small"
+                        :loading="triggeringJobId === task.jobId"
+                        @click="handleTriggerJob(task)"
+                      >
+                        <template #icon><PlayCircleOutlined /></template>
+                        执行
+                      </a-button>
+                    </a-tooltip>
+                    <a-button type="link" size="small" @click="handleViewJobLogs(task)">
+                      日志
+                    </a-button>
+                  </a-space>
+                </template>
+              </template>
+            </a-table>
+          </div>
         </template>
       </a-table>
     </a-card>
@@ -269,7 +316,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
 import {
   PlusOutlined, EditOutlined, DeleteOutlined, PlayCircleOutlined,
-  HistoryOutlined, ArrowRightOutlined
+  HistoryOutlined, ArrowRightOutlined, FileTextOutlined
 } from '@ant-design/icons-vue'
 import request from '@/api/request'
 
@@ -344,6 +391,33 @@ const jobLogColumns = [
   { title: '耗时', dataIndex: 'duration', key: 'duration', width: 100 },
   { title: '错误信息', dataIndex: 'error_msg', key: 'error_msg', ellipsis: true },
 ]
+
+// Task columns for expanded row
+const taskColumns = [
+  { title: '执行顺序', key: 'order', width: 80 },
+  { title: '节点ID', dataIndex: 'nodeId', key: 'nodeId', width: 100 },
+  { title: '任务名称', dataIndex: 'jobName', key: 'jobName', width: 180 },
+  { title: '任务类型', key: 'jobType', width: 100 },
+  { title: '依赖节点', key: 'dependencies' },
+  { title: '操作', key: 'action', width: 150 },
+]
+
+// Job type labels and colors
+const jobTypeLabels = {
+  shell: 'Shell脚本',
+  python: 'Python脚本',
+  http: 'HTTP请求',
+  sql: 'SQL查询',
+}
+const jobTypeColors = {
+  shell: 'orange',
+  python: 'green',
+  http: 'blue',
+  sql: 'purple',
+}
+
+// Triggering job state
+const triggeringJobId = ref(null)
 
 // Methods
 const fetchFlows = async () => {
@@ -484,6 +558,95 @@ const handleViewInstanceDetail = async (record) => {
   instanceDetailVisible.value = true
 }
 
+// Get flow tasks from dag_config with job details
+const getFlowTasks = (flow) => {
+  const nodes = flow.dag_config?.nodes || []
+  const edges = flow.dag_config?.edges || []
+
+  // Build job map for quick lookup
+  const jobMap = {}
+  jobList.value.forEach(job => {
+    jobMap[job.id] = job
+  })
+
+  // Calculate execution order using topological sort
+  const inDegree = {}
+  const adjList = {}
+  nodes.forEach(node => {
+    inDegree[node.id] = 0
+    adjList[node.id] = []
+  })
+  edges.forEach(edge => {
+    if (inDegree[edge.target] !== undefined) {
+      inDegree[edge.target]++
+    }
+    if (adjList[edge.source]) {
+      adjList[edge.source].push(edge.target)
+    }
+  })
+
+  // Topological sort to get execution order
+  const order = {}
+  const queue = []
+  let orderNum = 1
+  Object.keys(inDegree).forEach(nodeId => {
+    if (inDegree[nodeId] === 0) {
+      queue.push(nodeId)
+    }
+  })
+  while (queue.length > 0) {
+    const nodeId = queue.shift()
+    order[nodeId] = orderNum++
+    (adjList[nodeId] || []).forEach(target => {
+      inDegree[target]--
+      if (inDegree[target] === 0) {
+        queue.push(target)
+      }
+    })
+  }
+
+  // Get dependencies for each node
+  const getDependencies = (nodeId) => {
+    return edges.filter(e => e.target === nodeId).map(e => e.source)
+  }
+
+  return nodes.map(node => {
+    const job = jobMap[node.job_id] || {}
+    return {
+      nodeId: node.id,
+      jobId: node.job_id,
+      jobName: job.name || `未知任务 (${node.job_id})`,
+      jobType: job.job_type || 'unknown',
+      order: order[node.id] || '-',
+      dependencies: getDependencies(node.id),
+    }
+  }).sort((a, b) => (a.order || 999) - (b.order || 999))
+}
+
+// Trigger individual job
+const handleTriggerJob = async (task) => {
+  if (!task.jobId) {
+    message.error('任务ID不存在')
+    return
+  }
+  try {
+    triggeringJobId.value = task.jobId
+    await request.post(`/jobs/${task.jobId}/trigger/`)
+    message.success(`任务 "${task.jobName}" 已触发执行`)
+  } catch (e) {
+    message.error('触发任务失败')
+  } finally {
+    triggeringJobId.value = null
+  }
+}
+
+// View job execution logs
+const handleViewJobLogs = async (task) => {
+  // Navigate to jobs page with filter or open log modal
+  message.info(`查看任务 "${task.jobName}" 的执行日志`)
+  // TODO: Can implement a job log modal or navigate to job detail page
+}
+
 onMounted(() => {
   fetchFlows()
   fetchJobs()
@@ -499,5 +662,16 @@ onMounted(() => {
 }
 .node-item, .edge-item {
   margin-bottom: 8px;
+}
+.expanded-tasks {
+  padding: 8px 16px;
+  background: #fafafa;
+  border-radius: 4px;
+}
+.expanded-tasks :deep(.ant-table) {
+  background: transparent;
+}
+.expanded-tasks :deep(.ant-table-thead > tr > th) {
+  background: #f0f0f0;
 }
 </style>
