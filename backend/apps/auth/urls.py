@@ -21,4 +21,24 @@ urlpatterns = [
     path('sso/<str:provider>/callback/', views.SSOCallbackView.as_view(), name='sso_callback'),
     path('sso/<str:provider>/bind/', views.SSOBindView.as_view(), name='sso_bind'),
     path('sso/<str:provider>/unbind/', views.SSOUnbindView.as_view(), name='sso_unbind'),
+
+    # User Management
+    path('users/', views.UserListCreateView.as_view(), name='user_list_create'),
+    path('users/<int:pk>/', views.UserDetailView.as_view(), name='user_detail'),
+    path('users/<int:pk>/status/', views.UserStatusView.as_view(), name='user_status'),
+    path('users/<int:pk>/reset-password/', views.UserResetPasswordView.as_view(), name='user_reset_password'),
+
+    # Department Management
+    path('departments/', views.DepartmentListCreateView.as_view(), name='department_list_create'),
+    path('departments/tree/', views.DepartmentTreeView.as_view(), name='department_tree'),
+    path('departments/<int:pk>/', views.DepartmentDetailView.as_view(), name='department_detail'),
+
+    # Role Management
+    path('roles/', views.RoleListCreateView.as_view(), name='role_list_create'),
+    path('roles/<int:pk>/', views.RoleDetailView.as_view(), name='role_detail'),
+    path('roles/<int:pk>/permissions/', views.RolePermissionsView.as_view(), name='role_permissions'),
+
+    # Permission Management
+    path('permissions/', views.PermissionListView.as_view(), name='permission_list'),
+    path('permissions/tree/', views.PermissionTreeView.as_view(), name='permission_tree'),
 ]
