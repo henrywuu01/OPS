@@ -14,11 +14,16 @@ urlpatterns = [
 
     # Send message endpoint
     path('send/', views.SendMessageView.as_view(), name='send_message'),
+    path('send-batch/', views.SendBatchMessageView.as_view(), name='send_batch_message'),
+
+    # Statistics
+    path('statistics/', views.MessageStatisticsView.as_view(), name='message_statistics'),
 
     # Internal notification endpoints
     path('notifications/', views.MyNotificationListView.as_view(), name='my_notification_list'),
     path('notifications/<int:pk>/', views.NotificationDetailView.as_view(), name='notification_detail'),
     path('notifications/<int:pk>/read/', views.NotificationMarkReadView.as_view(), name='notification_mark_read'),
+    path('notifications/<int:pk>/delete/', views.NotificationDeleteView.as_view(), name='notification_delete'),
     path('notifications/read-all/', views.NotificationMarkAllReadView.as_view(), name='notification_mark_all_read'),
     path('notifications/unread-count/', views.NotificationUnreadCountView.as_view(), name='notification_unread_count'),
 
