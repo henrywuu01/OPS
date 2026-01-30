@@ -9,6 +9,7 @@ djangorestframework-simplejwt==5.3.1
 python-social-auth==0.3.6
 social-auth-app-django==5.4.0
 pyotp==2.9.0
+qrcode==7.4.2
 
 # Database
 mysqlclient==2.2.1

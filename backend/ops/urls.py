@@ -19,6 +19,7 @@ urlpatterns = [
     # API v1
     path('api/v1/auth/', include('apps.auth.urls')),
     path('api/v1/users/', include('apps.auth.urls_users')),
+    path('api/v1/departments/', include('apps.auth.urls_departments')),
     path('api/v1/roles/', include('apps.auth.urls_roles')),
     path('api/v1/jobs/', include('apps.scheduler.urls')),
     path('api/v1/job-flows/', include('apps.scheduler.urls_flows')),

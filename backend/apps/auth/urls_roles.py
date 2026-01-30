@@ -6,4 +6,5 @@ urlpatterns = [
     path('<int:pk>/', views.RoleDetailView.as_view(), name='role_detail'),
     path('<int:pk>/permissions/', views.RolePermissionsView.as_view(), name='role_permissions'),
     path('permissions/', views.PermissionListView.as_view(), name='permission_list'),
+    path('permissions/tree/', views.PermissionTreeView.as_view(), name='permission_tree'),
 ]
