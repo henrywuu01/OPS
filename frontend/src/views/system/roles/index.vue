@@ -119,16 +119,16 @@
           <a-button size="small" @click="handleCollapseAll">收起全部</a-button>
         </a-space>
       </div>
-      <a-tree
-        v-if="permissionTree.length"
-        ref="treeRef"
-        v-model:checked-keys="checkedPermissions"
-        v-model:expanded-keys="expandedKeys"
-        :tree-data="permissionTree"
-        checkable
-        :field-names="{ title: 'name', key: 'id', children: 'children' }"
-        :height="400"
-      />
+      <div v-if="permissionTree.length" style="max-height: 400px; overflow-y: auto;">
+        <a-tree
+          ref="treeRef"
+          v-model:checked-keys="checkedPermissions"
+          v-model:expanded-keys="expandedKeys"
+          :tree-data="permissionTree"
+          checkable
+          :field-names="{ title: 'name', key: 'id', children: 'children' }"
+        />
+      </div>
       <a-empty v-else description="暂无权限数据" />
     </a-modal>
   </div>
@@ -227,10 +227,11 @@ const fetchRoles = async () => {
   loading.value = true
   try {
     const res = await getRoles()
-    roleList.value = res || []
+    roleList.value = Array.isArray(res) ? res : []
     pagination.total = roleList.value.length
   } catch (error) {
     console.error('Failed to fetch roles:', error)
+    roleList.value = []
   } finally {
     loading.value = false
   }
@@ -240,21 +241,27 @@ const fetchRoles = async () => {
 const fetchPermissionTree = async () => {
   try {
     const res = await getPermissionTree()
-    permissionTree.value = res || []
+    permissionTree.value = Array.isArray(res) ? res : []
     // Get all keys for expand
-    const getAllKeys = (nodes) => {
-      let keys = []
-      nodes.forEach(node => {
-        keys.push(node.id)
-        if (node.children?.length) {
-          keys = keys.concat(getAllKeys(node.children))
-        }
-      })
-      return keys
+    if (permissionTree.value.length > 0) {
+      const getAllKeys = (nodes) => {
+        let keys = []
+        if (!Array.isArray(nodes)) return keys
+        nodes.forEach(node => {
+          if (node && node.id) {
+            keys.push(node.id)
+            if (Array.isArray(node.children) && node.children.length) {
+              keys = keys.concat(getAllKeys(node.children))
+            }
+          }
+        })
+        return keys
+      }
+      expandedKeys.value = getAllKeys(permissionTree.value)
     }
-    expandedKeys.value = getAllKeys(permissionTree.value)
   } catch (error) {
     console.error('Failed to fetch permission tree:', error)
+    permissionTree.value = []
   }
 }
 
