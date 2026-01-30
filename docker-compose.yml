@@ -1,0 +1,113 @@
+version: '3.8'
+
+services:
+  # Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ops-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DJANGO_SETTINGS_MODULE=ops.settings
+    volumes:
+      - ./backend:/app
+      - ./config:/app/../config:ro
+      - backend_logs:/app/logs
+      - backend_media:/app/media
+    depends_on:
+      - db
+      - redis
+    networks:
+      - ops-network
+    restart: unless-stopped
+
+  # Celery Worker
+  celery:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ops-celery
+    command: celery -A ops worker -l info
+    volumes:
+      - ./backend:/app
+      - ./config:/app/../config:ro
+    depends_on:
+      - db
+      - redis
+    networks:
+      - ops-network
+    restart: unless-stopped
+
+  # Celery Beat Scheduler
+  celery-beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ops-celery-beat
+    command: celery -A ops beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler
+    volumes:
+      - ./backend:/app
+      - ./config:/app/../config:ro
+    depends_on:
+      - db
+      - redis
+    networks:
+      - ops-network
+    restart: unless-stopped
+
+  # Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: ops-frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+    networks:
+      - ops-network
+    restart: unless-stopped
+
+  # MySQL Database
+  db:
+    image: mysql:8.0
+    container_name: ops-mysql
+    ports:
+      - "3306:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=root123456
+      - MYSQL_DATABASE=db_ops
+      - MYSQL_USER=ops_user
+      - MYSQL_PASSWORD=ops_password
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./scripts/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    networks:
+      - ops-network
+    restart: unless-stopped
+
+  # Redis
+  redis:
+    image: redis:7.0-alpine
+    container_name: ops-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - ops-network
+    restart: unless-stopped
+
+volumes:
+  mysql_data:
+  redis_data:
+  backend_logs:
+  backend_media:
+
+networks:
+  ops-network:
+    driver: bridge

@@ -1,0 +1,51 @@
+# Django Core
+Django==4.2.9
+djangorestframework==3.14.0
+django-cors-headers==4.3.1
+django-filter==23.5
+
+# Authentication
+djangorestframework-simplejwt==5.3.1
+python-social-auth==0.3.6
+social-auth-app-django==5.4.0
+pyotp==2.9.0
+
+# Database
+mysqlclient==2.2.1
+django-redis==5.4.0
+redis==5.0.1
+
+# Task Queue
+celery==5.3.6
+django-celery-beat==2.5.0
+django-celery-results==2.5.1
+
+# State Machine & History
+django-fsm==2.8.1
+django-simple-history==3.4.0
+
+# Data Processing
+pandas==2.1.4
+openpyxl==3.1.2
+xlrd==2.0.1
+
+# API Documentation
+drf-spectacular==0.27.0
+
+# Utils
+python-decouple==3.8
+Pillow==10.2.0
+requests==2.31.0
+jinja2==3.1.2
+
+# Development
+pylint==3.0.3
+pylint-django==2.5.5
+black==23.12.1
+isort==5.13.2
+
+# Testing
+pytest==7.4.4
+pytest-django==4.7.0
+pytest-cov==4.1.0
+factory-boy==3.3.0

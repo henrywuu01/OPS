@@ -1,0 +1,98 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  height: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+// Custom scrollbar
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+// Page container
+.page-container {
+  padding: 24px;
+  background: #fff;
+  min-height: calc(100vh - 64px - 48px);
+}
+
+// Table toolbar
+.table-toolbar {
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+// Form layout
+.search-form {
+  margin-bottom: 16px;
+  padding: 16px;
+  background: #fafafa;
+  border-radius: 4px;
+}
+
+// Card styles
+.stat-card {
+  text-align: center;
+
+  .stat-value {
+    font-size: 28px;
+    font-weight: 600;
+    color: #1890ff;
+  }
+
+  .stat-label {
+    color: #666;
+    margin-top: 8px;
+  }
+}
+
+// Status tags
+.status-enabled {
+  color: #52c41a;
+}
+
+.status-disabled {
+  color: #ff4d4f;
+}
+
+// Utility classes
+.text-center {
+  text-align: center;
+}
+
+.text-right {
+  text-align: right;
+}
+
+.mt-16 {
+  margin-top: 16px;
+}
+
+.mb-16 {
+  margin-bottom: 16px;
+}
+
+.ml-8 {
+  margin-left: 8px;
+}
+
+.mr-8 {
+  margin-right: 8px;
+}
