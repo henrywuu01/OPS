@@ -16,7 +16,7 @@ from django.contrib.auth import get_user_model
 
 from .models import User, Department, Role, Permission, UserRole, RolePermission
 from .serializers import (
-    LoginSerializer, UserSerializer, UserCreateSerializer, UserUpdateSerializer,
+    LoginSerializer, RegisterSerializer, UserSerializer, UserCreateSerializer, UserUpdateSerializer,
     PasswordChangeSerializer, ProfileSerializer, DepartmentSerializer,
     RoleSerializer, RoleCreateUpdateSerializer, PermissionSerializer,
     PermissionTreeSerializer, CustomTokenObtainPairSerializer
@@ -54,6 +54,31 @@ class LoginView(APIView):
                 'is_staff': user.is_staff,
             }
         })
+
+
+class RegisterView(APIView):
+    """User registration view."""
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = RegisterSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+
+        # Generate JWT tokens for auto-login after registration
+        refresh = RefreshToken.for_user(user)
+
+        return Response({
+            'message': '注册成功',
+            'refresh': str(refresh),
+            'access': str(refresh.access_token),
+            'user': {
+                'id': user.id,
+                'username': user.username,
+                'real_name': user.real_name,
+                'email': user.email,
+            }
+        }, status=status.HTTP_201_CREATED)
 
 
 class LogoutView(APIView):

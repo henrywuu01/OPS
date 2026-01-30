@@ -32,6 +32,40 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         return data
 
 
+class RegisterSerializer(serializers.ModelSerializer):
+    """User registration serializer."""
+    password = serializers.CharField(write_only=True, required=True, min_length=8)
+    confirm_password = serializers.CharField(write_only=True, required=True)
+
+    class Meta:
+        model = User
+        fields = ['username', 'email', 'phone', 'real_name', 'password', 'confirm_password']
+
+    def validate_username(self, value):
+        if User.objects.filter(username=value).exists():
+            raise serializers.ValidationError('用户名已存在')
+        return value
+
+    def validate_email(self, value):
+        if value and User.objects.filter(email=value).exists():
+            raise serializers.ValidationError('邮箱已被注册')
+        return value
+
+    def validate(self, attrs):
+        if attrs['password'] != attrs['confirm_password']:
+            raise serializers.ValidationError({'confirm_password': '两次输入的密码不一致'})
+        validate_password(attrs['password'])
+        return attrs
+
+    def create(self, validated_data):
+        validated_data.pop('confirm_password')
+        password = validated_data.pop('password')
+        user = User.objects.create(**validated_data)
+        user.set_password(password)
+        user.save()
+        return user
+
+
 class LoginSerializer(serializers.Serializer):
     """Login request serializer."""
     username = serializers.CharField(max_length=50)
