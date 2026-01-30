@@ -362,3 +362,297 @@ class JobStatisticsView(APIView):
             'avg_duration_ms': round(avg_duration, 2),
             'daily_stats': list(daily_stats)
         })
+
+
+# ==================== Monitoring Views ====================
+
+from .models import FlowInstance, JobAlert
+
+
+class SystemMetricsView(APIView):
+    """Get overall scheduler system metrics."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from .services import JobMonitoringService
+        metrics = JobMonitoringService.get_system_metrics()
+        return Response(metrics)
+
+
+class JobHealthView(APIView):
+    """Get job health metrics."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        hours = int(request.query_params.get('hours', 24))
+        from .services import JobMonitoringService
+        health = JobMonitoringService.get_job_health(pk, hours)
+        return Response(health)
+
+
+class FailedJobsReportView(APIView):
+    """Get report of failed jobs."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        hours = int(request.query_params.get('hours', 24))
+        from .services import JobMonitoringService
+        report = JobMonitoringService.get_failed_jobs_report(hours)
+        return Response({'failed_jobs': report, 'period_hours': hours})
+
+
+class RunningJobsView(APIView):
+    """Get currently running jobs."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        running_logs = JobLog.objects.filter(
+            status='running'
+        ).select_related('job', 'trigger_user').order_by('-start_time')
+
+        jobs = []
+        for log in running_logs:
+            jobs.append({
+                'log_id': log.id,
+                'job_id': log.job_id,
+                'job_name': log.job.name,
+                'job_type': log.job.job_type,
+                'trace_id': log.trace_id,
+                'trigger_type': log.trigger_type,
+                'trigger_user': log.trigger_user.username if log.trigger_user else None,
+                'start_time': log.start_time.isoformat(),
+                'running_seconds': (timezone.now() - log.start_time).total_seconds(),
+            })
+
+        return Response({'running_jobs': jobs, 'count': len(jobs)})
+
+
+class JobCancelView(APIView):
+    """Cancel a running job."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk, log_id):
+        try:
+            log = JobLog.objects.get(pk=log_id, job_id=pk)
+        except JobLog.DoesNotExist:
+            return Response(
+                {'error': '日志不存在'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        if log.status != 'running':
+            return Response(
+                {'error': '只能取消运行中的任务'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        log.status = 'cancelled'
+        log.end_time = timezone.now()
+        log.duration = int((log.end_time - log.start_time).total_seconds() * 1000)
+        log.error_msg = f'Cancelled by user {request.user.username}'
+        log.save()
+
+        return Response({'message': '任务已取消', 'status': log.status})
+
+
+# ==================== Flow Instance Views ====================
+
+class FlowInstanceListView(APIView):
+    """List flow execution instances."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        try:
+            flow = JobFlow.objects.get(pk=pk)
+        except JobFlow.DoesNotExist:
+            return Response(
+                {'error': '工作流不存在'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        queryset = FlowInstance.objects.filter(flow=flow)
+
+        # Status filter
+        instance_status = request.query_params.get('status')
+        if instance_status:
+            queryset = queryset.filter(status=instance_status)
+
+        # Date range filter
+        start_date = request.query_params.get('start_date')
+        end_date = request.query_params.get('end_date')
+        if start_date:
+            queryset = queryset.filter(start_time__date__gte=start_date)
+        if end_date:
+            queryset = queryset.filter(start_time__date__lte=end_date)
+
+        # Pagination
+        page = int(request.query_params.get('page', 1))
+        page_size = int(request.query_params.get('page_size', 10))
+        start = (page - 1) * page_size
+        end = start + page_size
+
+        total = queryset.count()
+        instances = queryset.order_by('-start_time')[start:end]
+
+        results = []
+        for inst in instances:
+            results.append({
+                'id': inst.id,
+                'instance_id': inst.instance_id,
+                'trigger_type': inst.trigger_type,
+                'trigger_user': inst.trigger_user.username if inst.trigger_user else None,
+                'status': inst.status,
+                'start_time': inst.start_time.isoformat(),
+                'end_time': inst.end_time.isoformat() if inst.end_time else None,
+                'duration': inst.duration,
+            })
+
+        return Response({
+            'total': total,
+            'page': page,
+            'page_size': page_size,
+            'results': results
+        })
+
+
+class FlowInstanceDetailView(APIView):
+    """Get flow instance detail."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk, instance_id):
+        try:
+            instance = FlowInstance.objects.select_related('flow', 'trigger_user').get(
+                instance_id=instance_id, flow_id=pk
+            )
+        except FlowInstance.DoesNotExist:
+            return Response(
+                {'error': '实例不存在'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Get all job logs for this instance
+        job_logs = JobLog.objects.filter(
+            flow_instance_id=instance_id
+        ).select_related('job').order_by('start_time')
+
+        logs = []
+        for log in job_logs:
+            logs.append({
+                'job_id': log.job_id,
+                'job_name': log.job.name,
+                'trace_id': log.trace_id,
+                'status': log.status,
+                'start_time': log.start_time.isoformat(),
+                'end_time': log.end_time.isoformat() if log.end_time else None,
+                'duration': log.duration,
+                'error_msg': log.error_msg,
+            })
+
+        return Response({
+            'id': instance.id,
+            'instance_id': instance.instance_id,
+            'flow_id': instance.flow_id,
+            'flow_name': instance.flow.name,
+            'trigger_type': instance.trigger_type,
+            'trigger_user': instance.trigger_user.username if instance.trigger_user else None,
+            'status': instance.status,
+            'start_time': instance.start_time.isoformat(),
+            'end_time': instance.end_time.isoformat() if instance.end_time else None,
+            'duration': instance.duration,
+            'input_params': instance.input_params,
+            'result': instance.result,
+            'error_msg': instance.error_msg,
+            'job_logs': logs,
+        })
+
+
+# ==================== Alert Views ====================
+
+class JobAlertListView(APIView):
+    """List job alerts."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        queryset = JobAlert.objects.select_related('job', 'log').all()
+
+        # Status filter
+        alert_status = request.query_params.get('status')
+        if alert_status:
+            queryset = queryset.filter(status=alert_status)
+
+        # Alert type filter
+        alert_type = request.query_params.get('alert_type')
+        if alert_type:
+            queryset = queryset.filter(alert_type=alert_type)
+
+        # Job filter
+        job_id = request.query_params.get('job_id')
+        if job_id:
+            queryset = queryset.filter(job_id=job_id)
+
+        # Pagination
+        page = int(request.query_params.get('page', 1))
+        page_size = int(request.query_params.get('page_size', 10))
+        start = (page - 1) * page_size
+        end = start + page_size
+
+        total = queryset.count()
+        alerts = queryset.order_by('-created_at')[start:end]
+
+        results = []
+        for alert in alerts:
+            results.append({
+                'id': alert.id,
+                'job_id': alert.job_id,
+                'job_name': alert.job.name,
+                'log_id': alert.log_id,
+                'alert_type': alert.alert_type,
+                'title': alert.title,
+                'content': alert.content[:200],
+                'status': alert.status,
+                'channels': alert.channels,
+                'sent_at': alert.sent_at.isoformat() if alert.sent_at else None,
+                'created_at': alert.created_at.isoformat(),
+            })
+
+        return Response({
+            'total': total,
+            'page': page,
+            'page_size': page_size,
+            'results': results
+        })
+
+
+class JobAlertAcknowledgeView(APIView):
+    """Acknowledge a job alert."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        try:
+            alert = JobAlert.objects.get(pk=pk)
+        except JobAlert.DoesNotExist:
+            return Response(
+                {'error': '告警不存在'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        alert.status = 'acknowledged'
+        alert.acknowledged_at = timezone.now()
+        alert.acknowledged_by = request.user
+        alert.save()
+
+        return Response({'message': '告警已确认', 'status': alert.status})
+
+
+class SyncSchedulesView(APIView):
+    """Manually sync all schedules to Celery Beat."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        from .services import SchedulerService
+        result = SchedulerService.sync_all_schedules()
+        return Response({
+            'message': '调度任务同步完成',
+            'synced_jobs': result['jobs'],
+            'synced_flows': result['flows']
+        })
