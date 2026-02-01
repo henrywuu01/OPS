@@ -61,6 +61,7 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'simple_history.middleware.HistoryRequestMiddleware',
+    'apps.common.middleware.CurrentUserMiddleware',
     'apps.audit.middleware.AuditLogMiddleware',
     # Security & Performance middleware
     'apps.common.security.SecurityHeadersMiddleware',
