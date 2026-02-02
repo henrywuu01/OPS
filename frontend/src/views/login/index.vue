@@ -65,7 +65,7 @@
               :loading="ssoLoading === provider.name"
             >
               <template #icon>
-                <WechatOutlined v-if="provider.icon === 'wechat'" />
+                <WechatWorkOutlined v-if="provider.icon === 'wechat'" />
                 <DingdingOutlined v-else-if="provider.icon === 'dingtalk'" />
                 <span v-else-if="provider.icon === 'feishu'" class="feishu-icon">飞</span>
               </template>
@@ -112,7 +112,7 @@
 import { reactive, ref, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { message } from 'ant-design-vue'
-import { UserOutlined, LockOutlined, WechatOutlined, DingdingOutlined } from '@ant-design/icons-vue'
+import { UserOutlined, LockOutlined, WechatWorkOutlined, DingdingOutlined } from '@ant-design/icons-vue'
 import { useUserStore } from '@/stores/user'
 import { getSSOConfig, getSSOLoginUrl } from '@/api/auth'
 
