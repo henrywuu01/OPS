@@ -7,8 +7,8 @@
       :width="220"
     >
       <div class="logo">
-        <span v-if="!collapsed">OPS</span>
-        <span v-else>O</span>
+        <span v-if="!collapsed">IOPS</span>
+        <span v-else>I</span>
       </div>
       <a-menu
         v-model:selectedKeys="selectedKeys"

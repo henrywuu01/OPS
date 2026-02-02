@@ -132,7 +132,7 @@ const router = createRouter({
 
 router.beforeEach((to, from, next) => {
   NProgress.start()
-  document.title = to.meta.title ? `${to.meta.title} - OPS` : 'OPS'
+  document.title = to.meta.title ? `${to.meta.title} - IOPS` : 'IOPS'
 
   const token = localStorage.getItem('token')
   if (to.meta.requireAuth !== false && !token) {
